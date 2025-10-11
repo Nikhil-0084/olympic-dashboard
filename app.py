@@ -53,12 +53,43 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+import streamlit as st
+from datetime import datetime
+
+# Sidebar Title
 st.sidebar.title("Olympics Analysis")
-st.sidebar.image("https://clipart-library.com/2023/olympic-games-logo-clipart-xl.png")
-user_menu= st.sidebar.radio(
+
+# Animated Olympic Logo (GIF)
+st.sidebar.image("https://drawnjournalism.com/wp-content/uploads/2021/07/di00726-00-800px-25-7-square2-anim-c-olympic-rings-keeping-distance-frits-ahlefeldt.gif?w=640", use_container_width=True)
+
+# Sidebar Menu
+user_menu = st.sidebar.radio(
     'Select an Option',
-    ("Medal Tally","Overall Analysis","Country-Wise Analysis","Athlete-Wise Analysis","Olympic Records","Olympic Timeline","Unexpected Performance")
+    (
+        "Medal Tally",
+        "Overall Analysis",
+        "Country-Wise Analysis",
+        "Athlete-Wise Analysis",
+        "Olympic Records",
+        "Olympic Timeline",
+        "Unexpected Performance",
+        "Medal Predictor"
+
+    )
 )
+
+# Countdown to next Olympics
+next_olympics = datetime(2028, 7, 14)
+now = datetime.now()
+time_left = next_olympics - now
+
+days = time_left.days
+hours, remainder = divmod(time_left.seconds, 3600)
+minutes, seconds = divmod(remainder, 60)
+
+st.sidebar.markdown("### 🕒 Countdown to LA 2028 Olympics")
+st.sidebar.markdown(f"**{days}** days, **{hours}** hours, **{minutes}** minutes")
+
 
 
 
@@ -761,3 +792,110 @@ if user_menu == "Unexpected Performance":
             💡 <b>Did You Know?</b> Fiji's win in Rugby Sevens in 2016 was the country's first Olympic medal ever, turning them into national heroes overnight.
         </div>
         """, unsafe_allow_html=True)
+
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+import streamlit as st
+import plotly.express as px
+
+# -----------------------------
+# Olympic Medal Data
+# -----------------------------
+data = {
+    'Country': (
+        ['USA']*6 + ['China']*6 + ['India']*6 + ['Kenya']*6 + ['Russia']*6 +
+        ['Japan']*6 + ['Germany']*6 + ['Australia']*6 + ['UK']*6 + ['Brazil']*6
+    ),
+    'Year': [2000, 2004, 2008, 2012, 2016, 2020]*10,
+    'Medals': [
+        93, 101, 110, 104, 121, 113,       # USA
+        58, 63, 100, 88, 70, 88,           # China
+        1, 1, 3, 6, 2, 7,                  # India
+        7, 8, 14, 11, 13, 10,              # Kenya
+        88, 90, 72, 82, 56, 71,            # Russia
+        18, 37, 25, 38, 41, 58,            # Japan
+        56, 49, 41, 44, 42, 37,            # Germany
+        58, 50, 46, 35, 29, 46,            # Australia
+        28, 30, 47, 65, 67, 65,            # UK
+        12, 10, 15, 17, 19, 21             # Brazil
+    ]
+}
+
+df = pd.DataFrame(data)
+
+# -----------------------------
+# Sidebar Navigation
+# -----------------------------
+st.sidebar.title("🏆 Olympic Insights")
+user_menu = st.sidebar.radio(
+    "Navigate to:",
+    ["Medal Predictor"]
+)
+
+# -----------------------------
+# Medal Predictor Section
+# -----------------------------
+if user_menu == "Medal Predictor":
+    st.title("🌍 Olympic Medal Predictions")
+    st.markdown("Predicted medal counts based on historical data using Linear Regression.")
+
+    # Sidebar controls for this page
+    st.sidebar.subheader("⚙️ Prediction Settings")
+    year = st.sidebar.number_input("Predict for Year:", min_value=2024, max_value=2100, value=2028, step=4)
+    view_option = st.sidebar.radio("Select View:", ["All Countries", "Specific Country"])
+
+    predictions = []
+    for country in df['Country'].unique():
+        country_data = df[df['Country'] == country]
+        if len(country_data['Year'].unique()) >= 2:
+            X = country_data[['Year']]
+            y = country_data['Medals']
+            model = LinearRegression()
+            model.fit(X, y)
+            pred = model.predict(np.array([[year]]))
+            predictions.append({
+                'Country': country,
+                'Predicted Medals': max(0, int(pred[0]))
+            })
+
+    pred_df = pd.DataFrame(predictions).sort_values(by='Predicted Medals', ascending=False).reset_index(drop=True)
+
+    # Filter if user selects a specific country
+    if view_option == "Specific Country":
+        selected_country = st.sidebar.selectbox("Choose Country:", df['Country'].unique())
+        pred_df = pred_df[pred_df['Country'] == selected_country]
+
+    # Display predictions table
+    st.markdown(f"### 🏅 Predicted Medal Counts ({year})")
+    st.dataframe(pred_df)
+
+    # Bar chart for top 10 countries
+    if view_option == "All Countries":
+        st.markdown("### 🥇 Top 10 Predicted Performers")
+        st.bar_chart(pred_df.head(10).set_index('Country'))
+
+    # -----------------------------
+    # Map Visualization
+    # -----------------------------
+    st.markdown("### 🗺️ Predicted Medals on World Map")
+    iso_codes = {
+        'USA':'USA', 'China':'CHN', 'India':'IND', 'Kenya':'KEN', 'Russia':'RUS',
+        'Japan':'JPN', 'Germany':'DEU', 'Australia':'AUS', 'UK':'GBR', 'Brazil':'BRA'
+    }
+    pred_df['ISO_Code'] = pred_df['Country'].map(iso_codes)
+
+    fig = px.choropleth(
+        pred_df,
+        locations='ISO_Code',
+        color='Predicted Medals',
+        hover_name='Country',
+        color_continuous_scale='Viridis',
+        title=f'Olympic Medal Predictions ({year})'
+    )
+    st.plotly_chart(fig)
+
+
+
+
+
